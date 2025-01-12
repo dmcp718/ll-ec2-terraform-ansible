@@ -8,9 +8,21 @@ The deployment creates the following resources:
 
 - **VPC Infrastructure**:
   - VPC with configurable CIDR block
-  - 3 public and 3 private subnets across availability zones
-  - NAT Gateways for private subnet internet access
-  - VPC Endpoints for AWS services (S3, SSM, SSMMessages, EC2Messages)
+  - Public subnet with internet gateway
+  - Route tables for public access
+  - VPC Endpoints for AWS services:
+    - S3 (Gateway endpoint)
+    - SSM (Interface endpoint)
+    - SSMMessages (Interface endpoint)
+    - EC2Messages (Interface endpoint)
+
+- **Security**:
+  - Security group with:
+    - SSH access (port 22)
+    - Internal VPC communication
+    - VPC endpoint access
+  - Network ACLs for additional security
+  - IAM roles for EC2 and VPC Flow Logs
 
 - **EC2 Instance**:
   - Ubuntu-based EC2 instance
@@ -114,9 +126,19 @@ The Ansible playbooks in this repository automate the configuration and deployme
 - Adjust the `group_vars` and `host_vars` to reflect the specific environment settings.
 - Securely store sensitive variables using Ansible Vault.
 
-## Security Considerations
+## Security
 
-- Use Ansible Vault to encrypt sensitive information such as passwords and API keys. Refer to the Ansible documentation for instructions on how to use Ansible Vault.
+- Passwords are stored securely using Ansible Vault
+- Security groups are configured with:
+  - Restricted SSH access (port 22)
+  - Internal VPC communication for services
+  - Secure access to VPC endpoints
+- VPC endpoints provide secure access to AWS services:
+  - S3 Gateway endpoint for efficient data transfer
+  - SSM endpoints for secure instance management
+  - EC2Messages endpoint for AWS systems manager
+- Network ACLs provide additional network security
+- IAM roles follow the principle of least privilege
 
 ## Directory Structure
 
@@ -135,13 +157,6 @@ The Ansible playbooks in this repository automate the configuration and deployme
 ├── tf-apply.sh               # Terraform apply wrapper script
 └── env.template              # Environment template file
 ```
-
-## Security
-
-- Passwords are stored securely using Ansible Vault
-- Security groups are configured with minimal required access
-- VPC gateway endpoints are used for AWS service access including S3
-- Private subnets are used for enhanced security
 
 ## Maintenance
 

@@ -145,8 +145,11 @@ INSTANCE_SG=$(cd tf && terraform output -raw instance_security_group_id)
 
 echo "Instance ID: $INSTANCE_ID"
 echo "Instance IP: $INSTANCE_IP"
-echo "SSH command: ssh -i $KEY_FILE ubuntu@$INSTANCE_IP"
 echo "Instance Security Group: $INSTANCE_SG"
+echo ""
+echo "SSH command: ssh -i $KEY_FILE ubuntu@$INSTANCE_IP"
+echo ""
+
 
 # Update Ansible inventory
 echo "[lucidlink_hosts]" > ansible/inventory
