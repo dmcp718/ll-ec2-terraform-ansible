@@ -1,39 +1,29 @@
 # LucidLink EC2 Terraform & Ansible Deployment
 
-This repository contains Infrastructure as Code (IaC) for deploying LucidLink on AWS EC2 instances using Terraform and Ansible. The deployment includes a complete VPC setup with public and private subnets, security groups, and necessary VPC endpoints for AWS services.
+This repository contains Infrastructure as Code (IaC) for deploying LucidLink on AWS EC2 instances using Terraform and Ansible. The deployment uses the default VPC and includes security groups, instance configuration, and secure password management.
 
 ## Infrastructure Overview
 
 The deployment creates the following resources:
 
-- **VPC Infrastructure**:
-  - VPC with configurable CIDR block
-  - Public subnet with internet gateway
-  - Route tables for public access
-  - VPC Endpoints for AWS services:
-    - S3 (Gateway endpoint)
-    - SSM (Interface endpoint)
-    - SSMMessages (Interface endpoint)
-    - EC2Messages (Interface endpoint)
+- **EC2 Instance**:
+  - Ubuntu-based EC2 instance (configurable version, default: 22.04)
+  - EBS volumes for root and data
+  - Security group with required access rules
+  - Automatic mounting of data volume
 
 - **Security**:
   - Security group with:
     - SSH access (port 22)
     - Internal VPC communication
-    - VPC endpoint access
-  - Network ACLs for additional security
-  - IAM roles for EC2 and VPC Flow Logs
-
-- **EC2 Instance**:
-  - Ubuntu-based EC2 instance
-  - EBS volumes for root and data
-  - Security group with required access rules
-  - Automatic mounting of data volume
+  - Secure password management using Ansible Vault
 
 - **LucidLink Service**:
+  - LucidLink v2 installation
+  - Configurable data cache size
   - Systemd service configuration
   - Automatic startup and mounting
-  - Secure password management using Ansible Vault
+  - Secure password file in `/root/.lucidlink.pwd`
 
 ## Prerequisites
 
@@ -59,7 +49,6 @@ The deployment creates the following resources:
 3. Edit `my-env` with your configuration:
    - Set your LucidLink credentials
    - Configure AWS settings
-   - Adjust VPC CIDR if needed
    - Set your SSH key details
 
 4. Run the setup script:
@@ -79,27 +68,50 @@ The deployment creates the following resources:
 Key environment variables in `env.template`:
 
 ```bash
-# LucidLink Configuration
+# LucidLink Configuration (Required)
+LL_VERSION="2"                     # LucidLink version (default: 2)
 LL_FILESPACE="filespace.domain"    # Your LucidLink filespace name
 LL_USERNAME="username"             # Your LucidLink username
-LL_MOUNT_POINT="/data"             # Mount point for the filespace
+LL_MOUNT_POINT="/media/lucidlink"  # Where to mount the filespace (optional, default: /media/lucidlink)
+LL_DATA_CACHE_SIZE="100GB"         # Data cache size (optional, default: 100GB)
+
+# Ubuntu Configuration (Optional)
+TF_VAR_ubuntu_version="22.04"      # Ubuntu version to use (optional, default: 22.04)
 
 # AWS Configuration
-AWS_REGION="us-east-2"             # AWS region
-AWS_INSTANCE_TYPE="t3.xlarge"      # EC2 instance type
-AWS_VPC_CIDR="10.0.0.0/24"        # VPC CIDR block
-AWS_KEY_NAME="your-key-pair"       # AWS key pair name
-AWS_KEY_FILE="~/.ssh/key.pem"      # Path to SSH private key
+AWS_REGION="us-east-1"             # AWS region for deployment (optional, default: us-east-1)
+AWS_INSTANCE_TYPE="t3.xlarge"      # EC2 instance type (optional, default: t3.xlarge)
+
+# Required AWS Configuration
+AWS_KEY_NAME="your-key-pair"       # AWS key pair name (required)
+AWS_KEY_FILE="~/.ssh/key.pem"      # Path to your SSH private key (required)
+
+# AWS Tags (Optional)
+AWS_TAGS_ENVIRONMENT="dev"         # Environment tag (optional, default: dev)
+AWS_TAGS_OWNER="admin"            # Owner tag (optional, default: admin)
+AWS_TAGS_PROJECT="lucidlink"      # Project tag (optional, default: lucidlink)
+
+# AWS Volume Configuration (Optional)
+AWS_ROOT_VOLUME_SIZE="30"         # Size of root volume in GB (optional, default: 30)
+AWS_DATA_VOLUME_SIZE="100"        # Size of data volume in GB (optional, default: 100)
+
+# Security Configuration (Optional)
+AWS_ALLOWED_SSH_CIDRS="0.0.0.0/0" # Comma-separated list of CIDRs allowed to SSH (optional, default: 0.0.0.0/0)
 ```
 
-### Terraform Variables
+### Security
 
-Key Terraform variables that can be customized:
+The deployment includes several security features:
 
-- `instance_type`: EC2 instance type (default: t3.xlarge)
-- `root_volume_size`: Size of root volume in GB (default: 30)
-- `data_volume_size`: Size of data volume in GB (default: 100)
-- `vpc_cidr`: VPC CIDR block (default: 10.0.0.0/24)
+1. **Password Management**:
+   - LucidLink password is stored securely using Ansible Vault
+   - Password file is created with restricted permissions (0400)
+   - Password file is stored in `/root/.lucidlink.pwd`
+
+2. **Access Control**:
+   - SSH access can be restricted to specific CIDR ranges
+   - Security group rules limit access to required ports only
+   - All sensitive files are owned by root with appropriate permissions
 
 ## Ansible Overview
 
@@ -125,20 +137,6 @@ The Ansible playbooks in this repository automate the configuration and deployme
 
 - Adjust the `group_vars` and `host_vars` to reflect the specific environment settings.
 - Securely store sensitive variables using Ansible Vault.
-
-## Security
-
-- Passwords are stored securely using Ansible Vault
-- Security groups are configured with:
-  - Restricted SSH access (port 22)
-  - Internal VPC communication for services
-  - Secure access to VPC endpoints
-- VPC endpoints provide secure access to AWS services:
-  - S3 Gateway endpoint for efficient data transfer
-  - SSM endpoints for secure instance management
-  - EC2Messages endpoint for AWS systems manager
-- Network ACLs provide additional network security
-- IAM roles follow the principle of least privilege
 
 ## Directory Structure
 
