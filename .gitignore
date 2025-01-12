@@ -17,4 +17,9 @@ terraform.tfstate
 ansible/roles/lucidlink/templates/cloud-init.yml.j2
 ansible/roles/lucidlink/templates/lucidlink.service.j2
 terraform
-packer
+packer# Terraform
+tf/.terraform/
+tf/.terraform.lock.hcl
+tf/terraform.tfstate
+tf/terraform.tfstate.backup
+tf/tfplan
