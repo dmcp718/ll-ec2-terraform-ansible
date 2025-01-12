@@ -4,15 +4,11 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.0"
-    }
   }
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = "us-east-2"
 }
 
 data "aws_ami" "ubuntu" {
@@ -31,35 +27,32 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "random_id" "this" {
-  byte_length = 4
+  byte_length = 8
 }
+
+# Removed module "vpc" block as VPC is part of the root module
 
 resource "aws_instance" "lucidlink" {
   ami           = data.aws_ami.ubuntu.id
-  vpc_security_group_ids = length(var.security_group_ids) > 0 ? var.security_group_ids : [aws_security_group.instance.id]
-  instance_type = var.instance_type
-  subnet_id     = var.subnet_id != "" ? var.subnet_id : module.vpc.public_subnets[0]
-  tags = {
-    Name = var.instance_name
-  }
+  instance_type = "t3.xlarge"
   key_name      = "us-east-2"
   
   
 
   root_block_device {
-    volume_size          = var.root_volume_size
-    volume_type          = var.ebs_volume_type
-    iops                 = var.ebs_iops
-    throughput           = var.ebs_throughput
+    volume_size          = 30
+    volume_type          = "gp3"
+    iops                 = 3000
+    throughput           = 500
     delete_on_termination = true
   }
 
   ebs_block_device {
     device_name = "/dev/sdb"
-    volume_size = var.ebs_volume_size
-    volume_type = var.ebs_volume_type
-    iops       = var.ebs_iops
-    throughput = var.ebs_throughput
+    volume_size = 100
+    volume_type = "gp3"
+    iops       = 3000
+    throughput = 500
   }
 
   user_data = templatefile("../ansible/roles/lucidlink/templates/cloud-init.yml.j2", {
@@ -71,7 +64,7 @@ resource "aws_instance" "lucidlink" {
   connection {
     type        = "ssh"
     user        = "ubuntu"
-    private_key = file(var.ssh_private_key_path)
+    private_key = file("/Users/davidphillips/Documents/Cloud_PEMs/us-east-2.pem")
     host        = self.public_ip
   }
 

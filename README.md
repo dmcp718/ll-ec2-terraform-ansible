@@ -89,6 +89,35 @@ Key Terraform variables that can be customized:
 - `data_volume_size`: Size of data volume in GB (default: 100)
 - `vpc_cidr`: VPC CIDR block (default: 10.0.0.0/24)
 
+## Ansible Overview
+
+The Ansible playbooks in this repository automate the configuration and deployment of the LucidLink service on EC2 instances. The playbooks handle tasks such as setting up systemd services, managing secure passwords, and ensuring idempotency across deployments.
+
+## Running Ansible Playbooks
+
+1. Ensure all prerequisites are met, including Ansible installation and AWS CLI configuration.
+
+2. Navigate to the `ansible` directory:
+   ```bash
+   cd ansible
+   ```
+
+3. Execute the playbook using the following command:
+   ```bash
+   ansible-playbook site.yml -i inventory
+   ```
+
+4. Verify the deployment by checking the status of the LucidLink service on the EC2 instance.
+
+## Environment-Specific Configurations
+
+- Adjust the `group_vars` and `host_vars` to reflect the specific environment settings.
+- Securely store sensitive variables using Ansible Vault.
+
+## Security Considerations
+
+- Use Ansible Vault to encrypt sensitive information such as passwords and API keys. Refer to the Ansible documentation for instructions on how to use Ansible Vault.
+
 ## Directory Structure
 
 ```
@@ -111,7 +140,7 @@ Key Terraform variables that can be customized:
 
 - Passwords are stored securely using Ansible Vault
 - Security groups are configured with minimal required access
-- VPC endpoints are used for AWS service access
+- VPC gateway endpoints are used for AWS service access including S3
 - Private subnets are used for enhanced security
 
 ## Maintenance

@@ -4,83 +4,116 @@ set -e
 set -a
 
 # Default values
-MOUNT_POINT="/data"
+MOUNT_POINT="/media/lucidlink"
 AWS_REGION="us-east-2"
 INSTANCE_TYPE="t3.xlarge"
-KEY_NAME="us-east-2"
-KEY_FILE="/Users/davidphillips/Documents/Cloud_PEMs/us-east-2.pem"
 VPC_CIDR="10.0.0.0/24"
+PROJECT="lucidlink"
+ENVIRONMENT="dev"
+OWNER="admin"
+ROOT_VOLUME_SIZE="30"
+DATA_VOLUME_SIZE="100"
+ALLOWED_SSH_CIDRS="0.0.0.0/0"
 
-# Parse command line arguments first
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --env-file)
-            ENV_FILE="$2"
-            shift 2
-            ;;
-        *)
-            echo "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
-
-# Load environment variables if env file provided
-if [[ -n "$ENV_FILE" ]]; then
-    if [[ ! -f "$ENV_FILE" ]]; then
-        echo "Error: Environment file not found: $ENV_FILE"
-        exit 1
+# Function to validate CIDR block
+validate_cidr() {
+    local cidr=$1
+    local ip_part
+    local prefix_part
+    
+    # Split CIDR into IP and prefix
+    IFS='/' read -r ip_part prefix_part <<< "$cidr"
+    
+    # Validate prefix
+    if [[ ! "$prefix_part" =~ ^[0-9]+$ ]] || [ "$prefix_part" -lt 0 ] || [ "$prefix_part" -gt 32 ]; then
+        return 1
     fi
     
-    # Source the environment file
-    source "$ENV_FILE"
+    # Validate IP
+    local IFS='.'
+    read -ra octets <<< "$ip_part"
+    if [ ${#octets[@]} -ne 4 ]; then
+        return 1
+    fi
     
-    # Export required variables with defaults
-    export FILESPACE="${LL_FILESPACE}"
-    export USERNAME="${LL_USERNAME}"
-    export MOUNT_POINT="${LL_MOUNT_POINT:-/data}"
-    export SERVICE_NAME="${FILESPACE//./-}"  # Replace dots with dashes for service name
+    for octet in "${octets[@]}"; do
+        if ! [[ "$octet" =~ ^[0-9]+$ ]] || [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
+            return 1
+        fi
+    done
     
-    # Export AWS variables
-    export AWS_REGION="${AWS_REGION:-us-east-2}"
-    export INSTANCE_TYPE="${AWS_INSTANCE_TYPE:-t3.xlarge}"
-    export KEY_NAME="${AWS_KEY_NAME}"
-    export KEY_FILE="${AWS_KEY_FILE}"
-    export VPC_CIDR="${AWS_VPC_CIDR:-10.0.0.0/24}"
-    export SUBNET_ID="${AWS_SUBNET_ID}"
-    export SECURITY_GROUP_ID="${AWS_SECURITY_GROUP_ID}"
+    return 0
+}
 
-    # Validate required variables
-    if [[ -z "$FILESPACE" ]] || [[ -z "$USERNAME" ]] || [[ -z "$MOUNT_POINT" ]] || [[ -z "$SERVICE_NAME" ]]; then
-        echo "Error: Required variables not set in $ENV_FILE"
-        echo "Required: LL_FILESPACE, LL_USERNAME, LL_MOUNT_POINT"
-        exit 1
+# Function to validate CIDR blocks
+validate_cidrs() {
+    local cidrs=$1
+    local IFS=','
+    local valid=true
+
+    for cidr in $cidrs; do
+        if ! validate_cidr "$cidr"; then
+            echo "Error: Invalid CIDR block format: ${cidr}"
+            valid=false
+        fi
+    done
+
+    if [[ "$cidrs" == *"0.0.0.0/0"* ]]; then
+        echo "Warning: SSH access is allowed from any IP (0.0.0.0/0). This is not recommended for production."
     fi
 
-    # Debug output
-    echo "Environment variables loaded:"
-    echo "FILESPACE=${FILESPACE}"
-    echo "USERNAME=${USERNAME}"
-    echo "MOUNT_POINT=${MOUNT_POINT}"
-    echo "SERVICE_NAME=${SERVICE_NAME}"
-    echo "AWS_REGION=${AWS_REGION}"
-    echo "INSTANCE_TYPE=${INSTANCE_TYPE}"
-    echo "KEY_NAME=${KEY_NAME}"
-    echo "KEY_FILE=${KEY_FILE}"
-    echo "VPC_CIDR=${VPC_CIDR}"
-fi
+    if [ "$valid" = false ]; then
+        return 1
+    fi
+    return 0
+}
 
-# Create necessary directories first
-echo "Creating directory structure..."
-mkdir -p ansible/roles/lucidlink/{tasks,templates,handlers}
-mkdir -p ansible/group_vars/all
+# Function to validate volume size
+validate_volume_size() {
+    local size=$1
+    local min_size=$2
+    local volume_type=$3
 
-# Validate required parameters before asking for password
-if [[ -z "$FILESPACE" || -z "$USERNAME" || -z "$KEY_NAME" || -z "$KEY_FILE" ]]; then
-    echo "Error: Missing required parameters"
-    echo "Required: FILESPACE, USERNAME, KEY_NAME, KEY_FILE"
-    exit 1
-fi
+    # Check if it's a number
+    if ! [[ "$size" =~ ^[0-9]+$ ]]; then
+        echo "Error: ${volume_type} volume size must be a number, got: ${size}"
+        return 1
+    fi
+
+    # Check minimum size
+    if [ "$size" -lt "$min_size" ]; then
+        echo "Error: ${volume_type} volume size must be at least ${min_size}GB, got: ${size}GB"
+        return 1
+    fi
+
+    # Warn if size is very large
+    if [ "$size" -gt 1000 ]; then
+        echo "Warning: ${volume_type} volume size is very large (${size}GB). This may incur significant costs."
+    fi
+
+    return 0
+}
+
+# Function to validate resource name
+validate_resource_name() {
+    local name=$1
+    local resource_type=$2
+    local max_length=$3
+
+    # Check if name contains only allowed characters
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "Error: ${resource_type} name can only contain letters, numbers, hyphens, and underscores"
+        return 1
+    fi
+
+    # Check length
+    if [ "${#name}" -gt "$max_length" ]; then
+        echo "Error: ${resource_type} name must be no longer than ${max_length} characters"
+        return 1
+    fi
+
+    return 0
+}
 
 # Function to read password securely
 read_password() {
@@ -133,16 +166,140 @@ EOF
     ansible-vault encrypt ansible/group_vars/all/vault.yml --vault-password-file ~/.ansible/vault_pass.txt
 
     # Clear password from memory
-    PASSWORD=""
+    unset PASSWORD
 }
+
+# Parse command line arguments first
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env-file)
+            ENV_FILE="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Create necessary directories first
+echo "Creating directory structure..."
+mkdir -p ansible/roles/lucidlink/{tasks,templates,handlers}
+mkdir -p ansible/group_vars/all
+
+# Load environment variables if env file provided
+if [[ -n "$ENV_FILE" ]]; then
+    if [[ ! -f "$ENV_FILE" ]]; then
+        echo "Error: Environment file not found: $ENV_FILE"
+        exit 1
+    fi
+    
+    # Source the environment file
+    source "$ENV_FILE"
+    
+    # Export required variables with defaults
+    export FILESPACE="${LL_FILESPACE}"
+    export USERNAME="${LL_USERNAME}"
+    export MOUNT_POINT="${LL_MOUNT_POINT:-/media/lucidlink}"
+    export SERVICE_NAME="${FILESPACE//./-}"  # Replace dots with dashes for service name
+    
+    # Export AWS variables
+    export AWS_REGION="${AWS_REGION:-us-east-2}"
+    export INSTANCE_TYPE="${AWS_INSTANCE_TYPE:-t3.xlarge}"
+    export KEY_NAME="${AWS_KEY_NAME}"
+    export KEY_FILE="${AWS_KEY_FILE}"
+    export VPC_CIDR="${AWS_VPC_CIDR:-10.0.0.0/24}"
+    export PROJECT="${AWS_TAGS_PROJECT:-lucidlink}"
+    export ENVIRONMENT="${AWS_TAGS_ENVIRONMENT:-dev}"
+    export OWNER="${AWS_TAGS_OWNER:-admin}"
+    
+    # Export volume configuration
+    export ROOT_VOLUME_SIZE="${AWS_ROOT_VOLUME_SIZE:-30}"
+    export DATA_VOLUME_SIZE="${AWS_DATA_VOLUME_SIZE:-100}"
+    
+    # Export VPC configuration
+    export VPC_NAME="${AWS_VPC_NAME:-ll-${SERVICE_NAME}-vpc}"
+    export INSTANCE_NAME="${AWS_INSTANCE_NAME:-ll-${SERVICE_NAME}}"
+    
+    # Export security configuration
+    export ALLOWED_SSH_CIDRS="${AWS_ALLOWED_SSH_CIDRS:-0.0.0.0/0}"
+
+    # Debug output
+    echo "Environment variables loaded:"
+    echo "LucidLink Configuration:"
+    echo "  FILESPACE=${FILESPACE}"
+    echo "  USERNAME=${USERNAME}"
+    echo "  MOUNT_POINT=${MOUNT_POINT}"
+    echo "  SERVICE_NAME=${SERVICE_NAME}"
+    echo
+    echo "AWS Configuration:"
+    echo "  AWS_REGION=${AWS_REGION}"
+    echo "  INSTANCE_TYPE=${INSTANCE_TYPE}"
+    echo "  KEY_NAME=${KEY_NAME}"
+    echo "  KEY_FILE=${KEY_FILE}"
+    echo "  VPC_CIDR=${VPC_CIDR}"
+    echo
+    echo "Resource Names:"
+    echo "  VPC_NAME=${VPC_NAME}"
+    echo "  INSTANCE_NAME=${INSTANCE_NAME}"
+    echo
+    echo "Volume Configuration:"
+    echo "  ROOT_VOLUME_SIZE=${ROOT_VOLUME_SIZE}GB"
+    echo "  DATA_VOLUME_SIZE=${DATA_VOLUME_SIZE}GB"
+    echo
+    echo "Tags:"
+    echo "  PROJECT=${PROJECT}"
+    echo "  ENVIRONMENT=${ENVIRONMENT}"
+    echo "  OWNER=${OWNER}"
+    echo
+    echo "Security:"
+    echo "  ALLOWED_SSH_CIDRS=${ALLOWED_SSH_CIDRS}"
+fi
+
+# Validate required parameters before asking for password
+if [[ -z "$FILESPACE" || -z "$USERNAME" || -z "$KEY_NAME" || -z "$KEY_FILE" ]]; then
+    echo "Error: Missing required parameters"
+    echo "Required: FILESPACE, USERNAME, KEY_NAME, KEY_FILE"
+    exit 1
+fi
+
+# Validate volume sizes
+if ! validate_volume_size "$ROOT_VOLUME_SIZE" 20 "Root"; then
+    exit 1
+fi
+
+if ! validate_volume_size "$DATA_VOLUME_SIZE" 50 "Data"; then
+    exit 1
+fi
+
+# Validate SSH CIDR blocks
+if ! validate_cidrs "$ALLOWED_SSH_CIDRS"; then
+    exit 1
+fi
+
+# Validate resource names if custom names provided
+if [ -n "$AWS_VPC_NAME" ]; then
+    if ! validate_resource_name "$VPC_NAME" "VPC" 64; then
+        exit 1
+    fi
+fi
+
+if [ -n "$AWS_INSTANCE_NAME" ]; then
+    if ! validate_resource_name "$INSTANCE_NAME" "Instance" 128; then
+        exit 1
+    fi
+fi
 
 # Handle vault setup
 if [[ -f ansible/group_vars/all/vault.yml ]]; then
+    echo ""
     read -p "Vault file already exists. Do you want to recreate it with a new password? (y/N) " recreate_vault
     if [[ "${recreate_vault}" == "y" ]] || [[ "${recreate_vault}" == "Y" ]]; then
         ensure_vault_password
         create_vault_file
     else
+        echo ""
         echo "Using existing vault file."
     fi
 else
@@ -336,7 +493,7 @@ resource "aws_instance" "lucidlink" {
   ${SECURITY_GROUP_ID:+"vpc_security_group_ids = [\"${SECURITY_GROUP_ID}\"]"}
 
   root_block_device {
-    volume_size          = 40
+    volume_size          = ${ROOT_VOLUME_SIZE}
     volume_type          = "gp3"
     iops                 = 3000
     throughput           = 500
@@ -345,7 +502,7 @@ resource "aws_instance" "lucidlink" {
 
   ebs_block_device {
     device_name = "/dev/sdb"
-    volume_size = 100
+    volume_size = ${DATA_VOLUME_SIZE}
     volume_type = "gp3"
     iops       = 3000
     throughput = 500
@@ -379,17 +536,40 @@ resource "aws_instance" "lucidlink" {
 }
 EOF
 
-# Create Terraform variables file
+# Generate terraform.tfvars file
 cat > tf/terraform.tfvars << EOF
-aws_region       = "${AWS_REGION}"
-instance_type    = "${INSTANCE_TYPE}"
-key_name         = "${KEY_NAME}"
-vpc_cidr         = "${VPC_CIDR}"
+# AWS Provider Configuration
+aws_region = "${AWS_REGION}"
+
+# Instance Configuration
+instance_type = "${INSTANCE_TYPE}"
+instance_name = "${INSTANCE_NAME}"
+key_name = "${KEY_NAME}"
+key_file = "${KEY_FILE}"
+
+# VPC Configuration
+vpc_cidr = "${VPC_CIDR}"
+vpc_name = "${VPC_NAME}"
+
+# Volume Configuration
+root_volume_size = ${ROOT_VOLUME_SIZE}
+data_volume_size = ${DATA_VOLUME_SIZE}
+
+# Mount Configuration
+mount_point = "${MOUNT_POINT}"
+
+# Security Configuration
+allowed_ssh_cidr_blocks = ["${ALLOWED_SSH_CIDRS//,/\",\"}"]
+
+# Resource Tags
+project = "${PROJECT}"
+environment = "${ENVIRONMENT}"
+owner = "${OWNER}"
 
 tags = {
-  Name        = "lucidlink-instance"
-  Environment = "production"
-  Terraform   = "true"
+  Application = "LucidLink"
+  Service     = "${SERVICE_NAME}"
+  ManagedBy   = "terraform"
 }
 EOF
 
@@ -422,3 +602,4 @@ echo ""
 echo "Next steps:"
 echo "1. Run ./tf-apply.sh to deploy infrastructure and configure LucidLink"
 echo "2. Use ./tf-destroy.sh when you want to tear down the infrastructure"
+echo ""

@@ -34,15 +34,19 @@ source "$ENV_FILE"
 # Export required variables with defaults
 export FILESPACE="${LL_FILESPACE}"
 export USERNAME="${LL_USERNAME}"
-export MOUNT_POINT="${LL_MOUNT_POINT:-/data}"
+export MOUNT_POINT="${LL_MOUNT_POINT:-/media/lucidlink}"
 export SERVICE_NAME="${FILESPACE//./-}"  # Replace dots with dashes for service name
 export AWS_REGION="${AWS_REGION:-us-east-2}"
 export INSTANCE_TYPE="${AWS_INSTANCE_TYPE:-t3.xlarge}"
 export KEY_NAME="${AWS_KEY_NAME}"
 export KEY_FILE="${AWS_KEY_FILE}"
-export SUBNET_ID="${AWS_SUBNET_ID}"
-export SECURITY_GROUP_ID="${AWS_SECURITY_GROUP_ID}"
 export VPC_CIDR="${AWS_VPC_CIDR:-10.0.0.0/24}"
+export PROJECT="${AWS_TAGS_PROJECT:-lucidlink}"
+export ENVIRONMENT="${AWS_TAGS_ENVIRONMENT:-dev}"
+export OWNER="${AWS_TAGS_OWNER:-admin}"
+
+# Set Terraform log level to ERROR to reduce verbosity
+export TF_LOG=ERROR
 
 # Function to cleanup terraform state lock
 cleanup_tf_lock() {
@@ -101,32 +105,33 @@ if [ ! -d "tf" ]; then
     exit 1
 fi
 
-# Initialize and apply Terraform
+# Initialize Terraform
 echo "Initializing Terraform..."
 (cd tf && terraform init -no-color)
 
-echo "Planning Terraform configuration..."
-(cd tf && terraform plan -no-color) || {
-    echo "Terraform plan failed. Please review the output above."
-    cleanup_tf_lock
-    exit 1
-}
+# Generate a Terraform plan and save it to a file
+echo "Generating Terraform plan..."
+(cd tf && terraform plan -out=tfplan -no-color)
 
+# Apply the saved Terraform plan
 echo "Applying Terraform configuration..."
-(cd tf && TF_LOG=ERROR terraform apply -auto-approve -no-color) || {
+(cd tf && terraform apply -auto-approve tfplan -no-color) || {
     echo "Terraform apply failed. Cleaning up state lock..."
     cleanup_tf_lock
     exit 1
 }
 
-# Get instance public IP
+# Get instance information
+echo "Retrieving instance information..."
+INSTANCE_ID=$(cd tf && terraform output -raw instance_id)
 INSTANCE_IP=$(cd tf && terraform output -raw public_ip)
 
-# Get VPC and subnet information
+# Get VPC information
 echo "Retrieving VPC information..."
-VPC_ID=$(cd tf && terraform output -raw vpc_id || echo "")
-PRIVATE_SUBNETS=$(cd tf && terraform output -json private_subnet_ids || echo "[]")
-PUBLIC_SUBNETS=$(cd tf && terraform output -json public_subnet_ids || echo "[]")
+VPC_ID=$(cd tf && terraform output -raw vpc_id)
+
+PRIVATE_SUBNETS=$(cd tf && terraform output -json private_subnets | jq -r '. | join(", ")')
+PUBLIC_SUBNETS=$(cd tf && terraform output -json public_subnets | jq -r '. | join(", ")')
 
 if [ -n "$VPC_ID" ]; then
     echo "VPC ID: $VPC_ID"
@@ -134,12 +139,18 @@ if [ -n "$VPC_ID" ]; then
     echo "Public Subnets: $PUBLIC_SUBNETS"
 fi
 
+# Get security group information
+echo "Retrieving security group information..."
+INSTANCE_SG=$(cd tf && terraform output -raw instance_security_group_id)
+
+echo "Instance ID: $INSTANCE_ID"
+echo "Instance IP: $INSTANCE_IP"
+echo "SSH command: ssh -i $KEY_FILE ubuntu@$INSTANCE_IP"
+echo "Instance Security Group: $INSTANCE_SG"
+
 # Update Ansible inventory
 echo "[lucidlink_hosts]" > ansible/inventory
 echo "$INSTANCE_IP ansible_host=$INSTANCE_IP ansible_user=ubuntu ansible_ssh_private_key_file=$KEY_FILE" >> ansible/inventory
-
-echo "Instance IP: $INSTANCE_IP"
-echo "SSH command: ssh -i $KEY_FILE ubuntu@$INSTANCE_IP"
 
 # Create Ansible inventory file
 cat > ansible/inventory << EOF

@@ -1,90 +1,61 @@
-variable "vpc_cidr" {
-  description = "CIDR block for VPC"
-  type        = string
-  default     = "10.0.0.0/24"  # Allows for the subnet sizes defined in locals
-}
-
-locals {
-  private_subnets = [cidrsubnet(var.vpc_cidr, 2, 0), cidrsubnet(var.vpc_cidr, 2, 1), cidrsubnet(var.vpc_cidr, 2, 2)]    // 3x /26
-  public_subnets  = [cidrsubnet(var.vpc_cidr, 4, 12), cidrsubnet(var.vpc_cidr, 4, 13), cidrsubnet(var.vpc_cidr, 4, 14)] // 3x /28
-  azs             = chunklist(data.aws_availability_zones.this.names, 3)[0]                                             // returns first three availability zones in the region as a list
-}
-
-data "aws_availability_zones" "this" {
-  state = "available"
-
-  filter {
-    name   = "opt-in-status"
-    values = ["opt-in-not-required"]
-  }
-}
-
-module "vpc" {
-  source = "terraform-aws-modules/vpc/aws"
-  name   = "vpc-${random_id.this.hex}"
-  cidr   = var.vpc_cidr
-  azs    = local.azs
-
-  private_subnets = local.private_subnets
-  public_subnets  = local.public_subnets
-
-  enable_nat_gateway   = true
-  single_nat_gateway   = false
-  enable_vpn_gateway   = false
+resource "aws_vpc" "main" {
+  cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
-  enable_dhcp_options  = false
 
-  tags = var.tags
+  tags = {
+    Name = "LucidLink-VPC"
+  }
 }
 
-module "vpc_endpoints" {
-  source = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_cidr, 4, 1)  # Corrected subnet CIDR calculation
+  map_public_ip_on_launch = true
+  availability_zone       = "us-east-2a"
 
-  vpc_id             = module.vpc.vpc_id
-  security_group_ids = [aws_security_group.vpc_endpoints.id]
+  tags = {
+    Name = "LucidLink-Subnet"
+  }
+}
 
-  endpoints = {
-    s3 = {
-      service = "s3"
-      tags    = { Name = "s3-vpc-endpoint" }
-      route_table_ids = concat(module.vpc.private_route_table_ids, module.vpc.public_route_table_ids)
-    },
-    ssm = {
-      service = "ssm"
-      tags    = { Name = "ssm" }
-    },
-    ssmmessages = {
-      service = "ssmmessages"
-      tags    = { Name = "ssmmessages" }
-    },
-    ec2messages = {
-      service = "ec2messages"
-      tags    = { Name = "ec2messages" }
-    }
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "LucidLink-IGW"
+  }
+}
+
+resource "aws_route_table" "main" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
   }
 
-  tags = var.tags
+  tags = {
+    Name = "LucidLink-RT"
+  }
 }
 
-resource "aws_security_group" "vpc_endpoints" {
-  name        = "endpoints-${random_id.this.hex}"
-  description = "endpoints-${random_id.this.hex}"
-  vpc_id      = module.vpc.vpc_id
+resource "aws_route_table_association" "main" {
+  subnet_id      = aws_subnet.main.id
+  route_table_id = aws_route_table.main.id
+}
+
+resource "aws_security_group" "main" {
+  vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = [module.vpc.vpc_cidr_block]
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Consider restricting this to your IP range for better security
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  tags = {
+    Name = "LucidLink-SG"
   }
-
-  tags = var.tags
 }

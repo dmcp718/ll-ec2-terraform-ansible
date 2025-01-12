@@ -19,21 +19,21 @@ output "ssh_command" {
 }
 
 output "vpc_id" {
-  description = "The ID of the VPC"
-  value       = module.vpc.vpc_id
+  description = "ID of the VPC"
+  value       = aws_vpc.main.id
 }
 
-output "private_subnet_ids" {
-  description = "List of IDs of private subnets"
-  value       = module.vpc.private_subnets
+output "private_subnets" {
+  description = "IDs of the private subnets"
+  value       = [aws_subnet.main.id]  # Adjust this if you have multiple subnets
 }
 
-output "public_subnet_ids" {
-  description = "List of IDs of public subnets"
-  value       = module.vpc.public_subnets
+output "public_subnets" {
+  description = "IDs of the public subnets"
+  value       = [aws_subnet.main.id]  # Adjust this if you have multiple subnets
 }
 
-output "vpc_cidr_block" {
-  description = "The CIDR block of the VPC"
-  value       = module.vpc.vpc_cidr_block
+output "instance_security_group_id" {
+  description = "ID of the instance security group"
+  value       = aws_security_group.instance.id
 }
