@@ -1,0 +1,4 @@
+---
+- hosts: lucidlink_hosts
+  roles:
+    - lucidlink

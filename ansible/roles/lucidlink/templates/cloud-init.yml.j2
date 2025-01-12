@@ -1,0 +1,61 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - wget
+  - git
+  - vim
+  - apt-transport-https
+  - ca-certificates
+  - software-properties-common
+  - xfsprogs
+  - fuse
+
+write_files:
+  - path: /etc/fuse.conf
+    content: |
+      user_allow_other
+    append: true
+
+runcmd:
+  # System updates
+  - DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade
+  
+  # Install LucidLink
+  - wget -q https://www.lucidlink.com/download/latest/lin64/stable/ -O /tmp/lucidinstaller.deb
+  - apt-get install -y /tmp/lucidinstaller.deb
+  
+  # Install CloudWatch agent
+  - wget -q https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -O /tmp/amazon-cloudwatch-agent.deb
+  - dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
+  - rm /tmp/lucidinstaller.deb /tmp/amazon-cloudwatch-agent.deb
+
+  # Identify and mount data volume
+  - |
+    ROOT_DEVICE=$(df / | tail -1 | awk '{print $1}')
+    ROOT_BASE=$(basename $ROOT_DEVICE | sed 's/[0-9]*$//')
+    echo "Root device: $ROOT_DEVICE (base: $ROOT_BASE)"
+
+    # Find unformatted disk
+    UNFORMATTED_DEVICE=$(lsblk -dn -o NAME,TYPE | grep disk | grep -v "$ROOT_BASE" | while read DEVICE TYPE; do
+        if ! mount | grep -q "/dev/$DEVICE" && [ -z "$(lsblk -n /dev/$DEVICE | grep part)" ]; then
+            echo "/dev/$DEVICE"
+            break
+        fi
+    done)
+
+    if [ -n "$UNFORMATTED_DEVICE" ]; then
+        echo "Found unformatted device: $UNFORMATTED_DEVICE"
+        mkfs.xfs -f $UNFORMATTED_DEVICE
+        mkdir -p /data
+        mount -t xfs $UNFORMATTED_DEVICE /data
+        echo "$UNFORMATTED_DEVICE /data xfs defaults 0 2" >> /etc/fstab
+        chown -R ubuntu:ubuntu /data
+        chmod 755 /data
+        echo "Data disk setup complete!"
+    else
+        echo "No unformatted device found"
+        exit 1
+    fi
