@@ -6,6 +6,7 @@ security_group_ids = ["sg-xxxxxxxxxxxxxxxxx"]
 key_name          = "your-key-pair-name"
 root_volume_size  = 20
 data_volume_size  = 100
+vpc_cidr          = "10.0.0.0/24"  # Customize this based on your needs
 
 tags = {
   Environment = "production"

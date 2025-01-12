@@ -12,7 +12,7 @@ ExecStart=/usr/bin/bash -c "/usr/bin/lucid2 --instance 501 daemon"
 ExecStartPost=/usr/bin/bash -c "until /usr/bin/lucid2 status | grep -q 'Unlinked' ; do continue ; done"
 ExecStartPost=/usr/bin/bash -c "/usr/bin/lucid2 --instance 501 link --fs {{ filespace }} --user {{ username }} --mount-point {{ mount_point }} --root-path /data --fuse-allow-other --password '${PASSWORD}'"
 ExecStartPost=/usr/bin/bash -c "until /usr/bin/lucid2 --instance 501 status | grep -q 'Linked' ; do continue ; done"
-ExecStartPost=/usr/bin/bash -c "/usr/bin/lucid2 --instance 501 config --set --DataCache.Size 80GB"
+ExecStartPost=/usr/bin/bash -c "/usr/bin/lucid2 --instance 501 config --set --DataCache.Size 95GB"
 ExecStop=/usr/bin/bash -c "/usr/bin/lucid2 exit"
 Restart=on-abort
 

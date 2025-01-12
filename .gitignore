@@ -1,40 +1,20 @@
-# Terraform files
-*.tfstate
-*.tfstate.*
-*.tfvars
-.terraform/
-.terraform.lock.hcl
-crash.log
-
-# Ansible files
-*.retry
-ansible/*.log
-ansible/roles/*/files/*.deb
-ansible/roles/*/files/*.zip
-ansible/roles/*/files/*.tar.gz
-
-# Environment files
-*.env
-!env.template
-.env*
-!.env.example
-
-# OS generated files
+.terraform/providers/registry.terraform.io/hashicorp/aws/5.22.0/darwin_arm64/terraform-provider-aws_v5.22.0_x5
+.terraform/providers/registry.terraform.io/hashicorp/random/3.5.1/darwin_arm64/terraform-provider-random_v3.5.1_x5
+packer/files/build_script.sh
+packer/files/compose.yaml
+packer/files/lucidlink-service-vars.txt
+packer/files/lucidlink.service
+packer/files/minio1
+packer/files/s3-gw.service
+packer/images/ami_id.txt
+packer/images/manifest.json
+terraform/.terraform/providers/registry.terraform.io/hashicorp/aws/5.22.0/darwin_arm64/terraform-provider-aws_v5.22.0_x5
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Editor directories and files
-.idea
-.vscode
-*.swp
-*.swo
-*~
-
-# Logs
-*.log
-logs/
+.infracost/*
+terraform/.infracost/terraform_modules/manifest.json
+custom-envs
+terraform.tfstate
+ansible/roles/lucidlink/templates/cloud-init.yml.j2
+ansible/roles/lucidlink/templates/lucidlink.service.j2
+terraform
+packer

@@ -26,6 +26,12 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+resource "random_id" "this" {
+  byte_length = 8
+}
+
+# Removed module "vpc" block as VPC is part of the root module
+
 resource "aws_instance" "lucidlink" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t3.xlarge"
@@ -34,7 +40,7 @@ resource "aws_instance" "lucidlink" {
   
 
   root_block_device {
-    volume_size          = 40
+    volume_size          = 30
     volume_type          = "gp3"
     iops                 = 3000
     throughput           = 500
