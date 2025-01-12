@@ -9,6 +9,7 @@ AWS_REGION="us-east-2"
 INSTANCE_TYPE="t3.xlarge"
 KEY_NAME="us-east-2"
 KEY_FILE="/Users/davidphillips/Documents/Cloud_PEMs/us-east-2.pem"
+VPC_CIDR="10.0.0.0/24"
 
 # Parse command line arguments first
 while [[ $# -gt 0 ]]; do
@@ -45,6 +46,7 @@ if [[ -n "$ENV_FILE" ]]; then
     export INSTANCE_TYPE="${AWS_INSTANCE_TYPE:-t3.xlarge}"
     export KEY_NAME="${AWS_KEY_NAME}"
     export KEY_FILE="${AWS_KEY_FILE}"
+    export VPC_CIDR="${AWS_VPC_CIDR:-10.0.0.0/24}"
     export SUBNET_ID="${AWS_SUBNET_ID}"
     export SECURITY_GROUP_ID="${AWS_SECURITY_GROUP_ID}"
 
@@ -65,6 +67,7 @@ if [[ -n "$ENV_FILE" ]]; then
     echo "INSTANCE_TYPE=${INSTANCE_TYPE}"
     echo "KEY_NAME=${KEY_NAME}"
     echo "KEY_FILE=${KEY_FILE}"
+    echo "VPC_CIDR=${VPC_CIDR}"
 fi
 
 # Create necessary directories first
@@ -373,6 +376,20 @@ resource "aws_instance" "lucidlink" {
   tags = {
     Name = "LucidLink-Instance"
   }
+}
+EOF
+
+# Create Terraform variables file
+cat > tf/terraform.tfvars << EOF
+aws_region       = "${AWS_REGION}"
+instance_type    = "${INSTANCE_TYPE}"
+key_name         = "${KEY_NAME}"
+vpc_cidr         = "${VPC_CIDR}"
+
+tags = {
+  Name        = "lucidlink-instance"
+  Environment = "production"
+  Terraform   = "true"
 }
 EOF
 
