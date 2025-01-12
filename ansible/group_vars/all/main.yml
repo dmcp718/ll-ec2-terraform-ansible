@@ -1,0 +1,8 @@
+---
+# This file contains non-sensitive variables
+service_name: "production-dpfs"
+filespace: "production.dpfs"
+username: "dpadmin"
+mount_point: "/media/production"
+ll_version: "2"
+data_cache_size: "70GB"

@@ -1,0 +1,2 @@
+---
+lucidlink_password: "{{ vault_lucidlink_password }}"

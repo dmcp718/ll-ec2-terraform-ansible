@@ -20,40 +20,30 @@ output "ssh_command" {
 
 output "vpc_id" {
   description = "The ID of the VPC"
-  value       = aws_vpc.main.id
+  value       = data.aws_vpc.default.id
 }
 
 output "vpc_cidr" {
   description = "The CIDR block of the VPC"
-  value       = aws_vpc.main.cidr_block
+  value       = data.aws_vpc.default.cidr_block
 }
 
 output "subnet_id" {
   description = "The ID of the subnet"
-  value       = aws_subnet.main.id
-}
-
-output "route_table_id" {
-  description = "The ID of the route table"
-  value       = aws_route_table.main.id
-}
-
-output "vpc_endpoint_s3" {
-  description = "The ID of the S3 VPC endpoint"
-  value       = aws_vpc_endpoint.s3.id
-}
-
-output "private_subnets" {
-  description = "IDs of the private subnets"
-  value       = [aws_subnet.main.id]  # Adjust this if you have multiple subnets
-}
-
-output "public_subnets" {
-  description = "IDs of the public subnets"
-  value       = [aws_subnet.main.id]  # Adjust this if you have multiple subnets
+  value       = data.aws_subnet.default.id
 }
 
 output "instance_security_group_id" {
   description = "ID of the instance security group"
   value       = aws_security_group.instance.id
+}
+
+output "private_subnets" {
+  description = "IDs of the private subnets"
+  value       = [data.aws_subnet.default.id]
+}
+
+output "public_subnets" {
+  description = "IDs of the public subnets"
+  value       = [data.aws_subnet.default.id]
 }
