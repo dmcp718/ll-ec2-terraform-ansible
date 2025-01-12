@@ -126,30 +126,12 @@ echo "Retrieving instance information..."
 INSTANCE_ID=$(cd tf && terraform output -raw instance_id)
 INSTANCE_IP=$(cd tf && terraform output -raw public_ip)
 
-# Get VPC information
-echo "Retrieving VPC information..."
-VPC_ID=$(cd tf && terraform output -raw vpc_id)
-
-PRIVATE_SUBNETS=$(cd tf && terraform output -json private_subnets | jq -r '. | join(", ")')
-PUBLIC_SUBNETS=$(cd tf && terraform output -json public_subnets | jq -r '. | join(", ")')
-
-if [ -n "$VPC_ID" ]; then
-    echo "VPC ID: $VPC_ID"
-    echo "Private Subnets: $PRIVATE_SUBNETS"
-    echo "Public Subnets: $PUBLIC_SUBNETS"
-fi
-
-# Get security group information
-echo "Retrieving security group information..."
-INSTANCE_SG=$(cd tf && terraform output -raw instance_security_group_id)
-
+# Get instance information
 echo "Instance ID: $INSTANCE_ID"
 echo "Instance IP: $INSTANCE_IP"
-echo "Instance Security Group: $INSTANCE_SG"
 echo ""
 echo "SSH command: ssh -i $KEY_FILE ubuntu@$INSTANCE_IP"
 echo ""
-
 
 # Update Ansible inventory
 echo "[lucidlink_hosts]" > ansible/inventory

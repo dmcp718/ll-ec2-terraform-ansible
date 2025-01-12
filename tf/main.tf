@@ -26,18 +26,6 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-data "aws_vpc" "default" {
-  default = true
-}
-
-data "aws_subnet" "default" {
-  vpc_id = data.aws_vpc.default.id
-  filter {
-    name   = "availability-zone"
-    values = ["us-east-2a"]
-  }
-}
-
 resource "random_id" "this" {
   byte_length = 8
 }

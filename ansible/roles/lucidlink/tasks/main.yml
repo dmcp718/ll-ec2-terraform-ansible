@@ -6,7 +6,7 @@
 - name: Create password file
   copy:
     content: "PASSWORD='{{ vault_lucidlink_password }}'"
-    dest: "/etc/{{ service_name }}.pwd"
+    dest: "/root/.{{ service_name }}.pwd"
     owner: root
     group: root
     mode: '0400'

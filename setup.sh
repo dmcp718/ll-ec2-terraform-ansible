@@ -317,7 +317,7 @@ cat > ansible/roles/lucidlink/tasks/main.yml << EOF
 - name: Create password file
   copy:
     content: "PASSWORD='{{ vault_lucidlink_password }}'"
-    dest: "/etc/{{ service_name }}.pwd"
+    dest: "/root/.{{ service_name }}.pwd"
     owner: root
     group: root
     mode: '0400'
@@ -361,7 +361,7 @@ After=network-online.target
 Type=simple
 User=ubuntu
 Group=ubuntu
-EnvironmentFile=/etc/{{ service_name }}.pwd
+EnvironmentFile=/root/.{{ service_name }}.pwd
 Environment=HOME=/home/ubuntu
 ExecStart=/usr/bin/bash -c "/usr/bin/lucid2 --instance 501 daemon"
 ExecStartPost=/usr/bin/bash -c "until /usr/bin/lucid2 status | grep -q 'Unlinked' ; do continue ; done"
